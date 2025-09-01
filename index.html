@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>대형폐기물 스티커 수수료 자동 계산기</title>
+<meta name="description" content="가구류·전기전자·생활용품·기타 전 품목 수수료표 기반 대형폐기물 자동 계산기" />
+<style>
+  :root { --accent:#2952ff; --bg:#f7f7fb; --card:#ffffff; --text:#222; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans KR', Arial, sans-serif; color:var(--text); background:var(--bg); }
+  header { position:sticky; top:0; z-index:10; background: linear-gradient(180deg,#fff 70%, transparent); border-bottom:1px solid #e8e8ee; }
+  .wrap { max-width:1100px; margin:0 auto; padding:18px 14px; }
+  h1 { margin:0 0 8px; font-size:22px; }
+  .tools { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  .tools > * { background:var(--card); border:1px solid #e7e7ef; border-radius:10px; padding:10px 12px; }
+  select { border:none; outline:none; font-size:14px; width:200px; }
+  .btn { border:none; background:var(--accent); color:#fff; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600; }
+  .btn.subtle { background:#fff; color:#333; border:1px solid #e7e7ef; }
+  .note { font-size:12px; color:#666; margin-left:auto; }
+  main .wrap { padding-top:6px; }
+  table { width:100%; border-collapse: collapse; background:var(--card); border:1px solid #ececf3; border-radius:12px; overflow:hidden; }
+  thead th { position:sticky; top:76px; z-index:5; background:#fcfcff; border-bottom:1px solid #ececf3; font-size:13px; padding:10px; }
+  tbody td { border-bottom:1px solid #f1f1f6; padding:10px; font-size:14px; text-align:center; }
+  tbody tr:hover { background:#fafaff; }
+  .left { text-align:left; }
+  .qtybox { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+  .qbtn { min-width:28px; height:28px; line-height:26px; border-radius:8px; border:1px solid #dfe3f0; background:#fff; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; user-select:none; }
+  .qbtn:active { transform:translateY(1px); }
+  .qty { min-width:24px; display:inline-block; text-align:center; font-variant-numeric: tabular-nums; }
+  tfoot td { padding:10px; background:#fafaff; }
+  .floating-total { position: fixed; left:0; right:0; bottom:0; z-index:20; background:#111827; color:#fff; padding:12px 14px; box-shadow:0 -4px 16px rgba(0,0,0,.12); }
+  .total-wrap { max-width:1100px; margin:0 auto; display:flex; gap:10px; align-items:center; }
+  .total-amount { font-size:18px; font-weight:800; margin-right:auto; }
+  .small { font-size:12px; opacity:.9; }
+  .hide-on-mobile { display:block; } 
+  @media (max-width:720px){ .hide-on-mobile{ display:none; } thead th{ top:124px; } }
+
+  /* 미리보기 모달 */
+  .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:50}
+  .modal.show{display:flex}
+  .backdrop{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+  .sheet{position:relative;max-width:900px;width:92%;max-height:80vh;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.2);}
+  .sheet header{position:sticky;top:0;background:#fff;border-bottom:1px solid #eee;padding:12px 16px;display:flex;gap:10px;align-items:center}
+  .sheet h3{margin:0;font-size:18px}
+  .sheet .close{margin-left:auto;border:1px solid #e5e7eb;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer}
+  .sheet .content{padding:16px}
+  .sheet table{width:100%;border-collapse:collapse}
+  .sheet th,.sheet td{border:1px solid #eee;padding:8px;text-align:center}
+  .sheet tfoot td{background:#fafafa;font-weight:700}
+
+  /* 플로팅 미리보기 버튼 */
+  .fpv-btn{position:fixed;right:16px;bottom:84px;z-index:50;background:#2952ff;color:#fff;border-radius:999px;padding:10px 14px;border:none;box-shadow:0 6px 16px rgba(0,0,0,.15);cursor:pointer;font-weight:700}
+
+  /* 임베드 환경에서 thead 겹침 방지 */
+  thead th{ position: static !important; top:auto !important; }
+  thead{ position: static !important; }
+
+  /* 분류 점프 하이라이트 */
+  .jump-flash { animation: flash 1.2s ease-out; }
+  @keyframes flash {
+    0% { background: #fff4cc; }
+    100% { background: transparent; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>대형폐기물 스티커 수수료 자동 계산기</h1>
+    <div class="tools">
+      <div>
+        <strong>분류</strong>
+        <select id="category">
+          <option value="ALL">전체 보기</option>
+          <option>가구류</option>
+          <option>전기·전자제품</option>
+          <option>생활용품</option>
+          <option>기타 품목</option>
+        </select>
+      </div>
+      <!-- 내보내기 버튼 제거 -->
+      <button class="btn" id="previewBtn" type="button" title="선택 항목과 합계를 한눈에 보기">미리보기</button>
+      <span class="note">2018.12.28 기준표 • 지역에 따라 실제 수수료가 다를 수 있습니다.</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="hide-on-mobile">분류</th>
+          <th>품목</th>
+          <th>규격</th>
+          <th>수수료(원)</th>
+          <th>수량</th>
+          <th>금액</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <p class="small">※ 이 계산기는 안내용입니다. 실제 신고·스티커 발급은 해당 지자체 시스템을 이용해 주세요.</p>
+  </div>
+</main>
+
+<div class="floating-total" id="totalBar">
+  <div class="total-wrap">
+    <div class="total-amount" id="grandTotal">총 합계: 0 원</div>
+    <!-- 선택 n건 / 합계 복사 제거 -->
+  </div>
+</div>
+
+<!-- 미리보기 모달 -->
+<div class="modal" id="previewModal" aria-hidden="true">
+  <div class="backdrop" id="previewBackdrop"></div>
+  <div class="sheet">
+    <header>
+      <h3>대형폐기물 배출 내역 미리보기</h3>
+      <button class="close" id="previewClose" type="button">닫기</button>
+    </header>
+    <div class="content">
+      <div id="previewEmpty" style="padding:8px 0;color:#666;">선택한 품목이 없습니다. 표에서 수량을 추가해 주세요.</div>
+      <div id="previewBody" style="display:none;">
+        <table>
+          <thead>
+            <tr>
+              <th>품목</th>
+              <th>규격</th>
+              <th>단가(원)</th>
+              <th>수량</th>
+              <th>금액(원)</th>
+            </tr>
+          </thead>
+          <tbody id="previewTbody"></tbody>
+          <tfoot>
+            <tr>
+              <td colspan="4">총 합계</td>
+              <td id="previewTotal">0</td>
+            </tr>
+          </tfoot>
+        </table>
+        <div style="margin-top:12px;">
+          <!-- 내역 복사 제거 -->
+          <button class="btn subtle" id="previewPrint" type="button">인쇄/저장</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== ① 데이터: 전 품목 ===== */
+const ITEMS = [
+  ["가구류","거울","1㎡ 이하",2000],["가구류","교자상(밥상)","1㎡ 초과",3000],
+  ["가구류","문갑(TV다이)","소형",2000],["가구류","문갑(TV다이)","중형",3000],["가구류","문갑(TV다이)","대형",5000],
+  ["가구류","비키니장롱","2짝문",7000],["가구류","비키니장롱","3짝문",10000],["가구류","비키니장롱","5짝문",15000],
+  ["가구류","서랍장","60cm 이하",3000],["가구류","서랍장","120cm 이하",5000],["가구류","서랍장","180cm 이하",7000],
+  ["가구류","시계","괘종·장식",5000],
+  ["가구류","신발장","1㎡ 이하",3000],["가구류","신발장","1㎡ 초과",5000],
+  ["가구류","소파","1인용",3000],["가구류","소파","2인용",6000],["가구류","소파","3인용",9000],["가구류","소파","4인용 이상",12000],
+  ["가구류","식탁","4인용",4000],["가구류","식탁","6인용",6000],["가구류","식탁","8인용 이상",10000],
+  ["가구류","쌀통","대형",2000],
+  ["가구류","싱크대","가스렌지대",2000],
+  ["가구류","싱크대","가스렌지 싱크대 일체형(2m 이하)",5000],
+  ["가구류","싱크대","가스렌지 싱크대 일체형(2m 초과)",7000],
+  ["가구류","의자","1㎡ 이하",2000],["가구류","의자","1㎡ 초과",3000],
+  ["가구류","장식장","가로 90cm 이하(2짝)",5000],["가구류","장식장","가로 90~120cm(3짝)",7000],
+  ["가구류","장식장","가로 120~150cm(4짝)",10000],["가구류","장식장","가로 150cm 이상(5짝)",15000],
+  ["가구류","책상","1인용",3000],["가구류","책상","사무용",6000],["가구류","책상","학생용 세트(의자포함)",5000],
+  ["가구류","책꽂이","120cm 이하",2000],["가구류","책꽂이","180cm 이하",4000],
+  ["가구류","침대","1인용",5000],["가구류","침대","2인용",7000],
+  ["가구류","침대 매트리스","1인용",5000],["가구류","침대 매트리스","2인용",7000],
+  ["가구류","흙침대","1인용",15000],["가구류","흙침대","2인용",20000],
+  ["가구류","캐비닛","2문",5000],["가구류","캐비닛","3문 이상",7000],
+  ["가구류","피아노","업라이트",10000],["가구류","피아노","그랜드",15000],
+
+  ["전기·전자제품","가스(전기)렌지","모든 규격",2000],["전기·전자제품","오븐렌지","모든 규격",4000],
+  ["전기·전자제품","가습기","모든 규격",2000],
+  ["전기·전자제품","공기청정기","99㎡ 이하",3000],["전기·전자제품","공기청정기","99~165㎡",5000],
+  ["전기·전자제품","냉난방기","66㎡ 이하",5000],["전기·전자제품","냉난방기","66~264㎡ 이하",8000],["전기·전자제품","냉난방기","264㎡ 초과",15000],
+  ["전기·전자제품","냉장고","300ℓ 이하",6000],["전기·전자제품","냉장고","300~500ℓ 이하",8000],["전기·전자제품","냉장고","500ℓ 초과",10000],
+  ["전기·전자제품","김치냉장고","160ℓ 이하",4000],["전기·전자제품","김치냉장고","160ℓ 초과",6000],
+  ["전기·전자제품","냉온수기/정수기","높이 1m 이하",3000],["전기·전자제품","냉온수기/정수기","높이 1m 초과",4000],
+  ["전기·전자제품","다리미","모든 규격",2000],["전기·전자제품","전기밥솥","모든 규격",2000],
+  ["전기·전자제품","비디오","모든 규격",2000],
+  ["전기·전자제품","선풍기","날개 1m 이하",2000],["전기·전자제품","선풍기","날개 1m 초과",3000],
+  ["전기·전자제품","세탁기","8kg 이하",4000],["전기·전자제품","세탁기","9kg 이상",6000],
+  ["전기·전자제품","식기세척기","모든 규격",6000],
+  ["전기·전자제품","안마의자","모든 규격",15000],
+  ["전기·전자제품","오디오(전화)","모든 규격",2000],["전기·전자제품","게임기","모든 규격",2000],
+  ["전기·전자제품","자동판매기","소형",10000],["전기·전자제품","자동판매기","대형",15000],
+  ["전기·전자제품","전기장판","모든 규격",2000],["전기·전자제품","정풍기","모든 규격",2000],["전기·전자제품","전화기","모든 규격",2000],
+  ["전기·전자제품","텔레비전","19인치 이하",2000],["전기·전자제품","텔레비전","20~30인치",3000],["전기·전자제품","텔레비전","31인치 이상",5000],
+  ["전기·전자제품","조명기구","모든 규격",2000],
+  ["전기·전자제품","컴퓨터 본체","모든 규격",2000],["전기·전자제품","LCD 모니터","모든 규격",2000],["전기·전자제품","노트북","모든 규격",2000],
+  ["전기·전자제품","프린터/복합기","모든 규격",2000],["전기·전자제품","스피커","모든 규격",2000],["전기·전자제품","팩스","모든 규격",2000],
+
+  ["생활용품","가방류","모든 규격",2000],
+  ["생활용품","큰고(큰 항아리)","높이 1m 이하",7000],["생활용품","큰고(큰 항아리)","높이 1m 초과",12000],
+  ["생활용품","돗자리","모든 규격",2000],["생활용품","물탱크","모든 규격",5000],
+  ["생활용품","유아용 카시트/보행기","모든 규격",2000],
+  ["생활용품","삼발이","모든 규격",2000],["생활용품","스키·스틱","모든 규격",2000],
+  ["생활용품","오디오/앰프","모든 규격",2000],
+  ["생활용품","오토바이(폐차)","모든 규격",15000],
+  ["생활용품","유모차","모든 규격",3000],
+  ["생활용품","자전거","아동용(세발)",2000],["생활용품","자전거","성인용",3000],
+  ["생활용품","장난감","5kg 이하",2000],
+  ["생활용품","채반통","모든 규격",2000],
+  ["생활용품","카펫","200×400cm 이하",5000],["생활용품","카펫","200×400cm 초과",10000],
+  ["생활용품","패라솔","모든 규격",2000],["생활용품","헬멧","모든 규격",2000],
+  ["생활용품","운동기구","일반(사이클/스텝퍼 등)",3000],["생활용품","운동기구","러닝머신",10000],
+  ["생활용품","간판","80×120cm 이하(알루미늄)",3000],["생활용품","간판","80×120cm 이하(아크릴)",5000],["생활용품","간판","80×120cm 초과",10000],
+  ["생활용품","고무통","90cm 이하",2000],["생활용품","고무통","90cm 초과",3000],
+  ["생활용품","방충망","90cm 이하",3000],["생활용품","방충망","90cm 초과",5000],
+
+  ["기타 품목","번개(사다리)","3단 이하",5000],["기타 품목","번개(사다리)","4단 이상",10000],
+  ["기타 품목","보일러","모든 규격",10000],
+  ["기타 품목","세면대","모든 규격",5000],
+  ["기타 품목","수족관(어항)","1m 이하",3000],["기타 품목","수족관(어항)","1m 초과",5000],
+  ["기타 품목","욕조","FRP",10000],["기타 품목","욕조","철제",15000],
+  ["기타 품목","호스","10m 이하",2000],["기타 품목","호스","10m 초과~30m 이하",3000],["기타 품목","호스","30m 초과",5000],
+  ["기타 품목","화분","50cm 이하",2000],["기타 품목","화분","50cm 초과",3000],
+  ["기타 품목","항아리(옹기)","높이 50cm 이하",2000],["기타 품목","항아리(옹기)","높이 50cm 초과",3000],
+];
+
+const $ = (sel)=>document.querySelector(sel);
+const tbody = $("#tbody");
+const state = { qty: {} };
+
+// URL 히스토리 우회
+function canUseHistoryReplace(){
+  const protocolOK = /^https?:$/.test(location.protocol);
+  const hasAPI = !!(window.history && history.replaceState);
+  const isSrcdoc = location.href.startsWith('about:') || location.href.includes('srcdoc');
+  const originNull = (location.origin === 'null');
+  return protocolOK && hasAPI && !isSrcdoc && !originNull;
+}
+
+let catFirstRow = {}; // 분류별 첫 행 캐시
+
+function buildShareQS(){
+  const params = new URLSearchParams();
+  const slim = {}; for(const [k,v] of Object.entries(state.qty)) if(v>0) slim[k]=v;
+  if(Object.keys(slim).length) params.set("sel", encodeURIComponent(JSON.stringify(slim)));
+  return params.toString()? ("?"+params.toString()) : "";
+}
+
+function render(){
+  tbody.innerHTML = "";
+  catFirstRow = {};
+  const frag = document.createDocumentFragment();
+  ITEMS.forEach((it, idx)=>{
+    const [cat,name,rule,price] = it;
+    const key = idx.toString();
+    const qty = state.qty[key] || 0;
+    const tr = document.createElement("tr");
+    tr.dataset.cat = cat;
+    if(!(cat in catFirstRow)) catFirstRow[cat] = tr; // 첫 행 기록
+    tr.innerHTML = `
+      <td class="hide-on-mobile">${cat}</td>
+      <td class="left">${name}</td>
+      <td>${rule}</td>
+      <td>${price.toLocaleString()}</td>
+      <td>
+        <div class="qtybox">
+          <span class="qbtn" data-k="${key}" data-d="-1" role="button" aria-label="감소" tabindex="0">−</span>
+          <span class="qty" id="q_${key}">${qty}</span>
+          <span class="qbtn" data-k="${key}" data-d="1" role="button" aria-label="증가" tabindex="0">＋</span>
+        </div>
+      </td>
+      <td id="amt_${key}">${(price*qty).toLocaleString()}</td>
+    `;
+    frag.appendChild(tr);
+  });
+  tbody.appendChild(frag);
+  updateTotal();
+}
+
+function updateTotal(){
+  let total = 0;
+  Object.entries(state.qty).forEach(([key,qty])=>{
+    const price = ITEMS[+key][3];
+    total += price * qty;
+    const amtCell = document.getElementById("amt_"+key);
+    const qtySpan = document.getElementById("q_"+key);
+    if(amtCell) amtCell.textContent = (price*qty).toLocaleString();
+    if(qtySpan) qtySpan.textContent = qty;
+  });
+  $("#grandTotal").textContent = "총 합계: " + total.toLocaleString() + " 원";
+  const qs = buildShareQS();
+  window._shareQS = qs;
+  if (canUseHistoryReplace()) {
+    try { history.replaceState(null, "", location.pathname + qs + location.hash); } catch(e) {}
+  }
+}
+
+// 수량 +/−
+function handleDelta(target){
+  const el = target.closest ? target.closest('.qbtn') : null;
+  const btn = el || target;
+  if(!btn || !(btn.classList && btn.classList.contains('qbtn'))) return;
+  const k = btn.getAttribute('data-k');
+  let d = parseInt(btn.getAttribute('data-d'),10);
+  if(isNaN(d)){
+    const txt = (btn.textContent||'').trim();
+    d = (txt === '+' || txt === '＋') ? 1 : -1;
+  }
+  const cur = state.qty[k]||0;
+  state.qty[k] = Math.max(0, cur + d);
+  updateTotal();
+}
+tbody.addEventListener('click', (e)=> handleDelta(e.target));
+tbody.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ handleDelta(e.target); e.preventDefault(); } });
+
+// 분류 선택 → 해당 카테고리 첫 행으로 스크롤
+$("#category").addEventListener("change", e=>{
+  const v = e.target.value;
+  if(v === 'ALL'){ window.scrollTo({top:0, behavior:'smooth'}); return; }
+  const row = catFirstRow[v];
+  if(row){
+    row.classList.remove('jump-flash'); // 재적용을 위해
+    row.offsetHeight; // reflow
+    row.classList.add('jump-flash');
+    row.scrollIntoView({behavior:'smooth', block:'center'});
+  }
+});
+
+// 초기화 버튼 제거됐으므로 숨김? → 요청에 없어서 유지하지 않음
+document.getElementById('previewBtn').addEventListener('click', openPreview);
+
+// 미리보기
+function openPreview(){
+  const modal = document.getElementById('previewModal');
+  const body = document.getElementById('previewBody');
+  const empty = document.getElementById('previewEmpty');
+  const tbodyP = document.getElementById('previewTbody');
+  const totalP = document.getElementById('previewTotal');
+  tbodyP.innerHTML = '';
+  let any=false, total=0;
+  Object.entries(state.qty).forEach(([k,qty])=>{
+    if(qty<=0) return; any=true;
+    const [cat,name,rule,price]=ITEMS[+k];
+    const amt = price*qty; total+=amt;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${name}</td><td>${rule}</td><td>${price.toLocaleString()}</td><td>${qty}</td><td>${amt.toLocaleString()}</td>`;
+    tbodyP.appendChild(tr);
+  });
+  totalP.textContent = total.toLocaleString();
+  empty.style.display = any?'none':'block';
+  body.style.display = any?'block':'none';
+  modal.classList.add('show');
+}
+document.getElementById('previewClose').addEventListener('click', ()=> document.getElementById('previewModal').classList.remove('show'));
+document.getElementById('previewBackdrop').addEventListener('click', ()=> document.getElementById('previewModal').classList.remove('show'));
+
+// 로컬스토리지 복원 + 초기 렌더
+(function restore(){
+  try{
+    const saved = JSON.parse(localStorage.getItem("bulky_fee_qty")||"{}");
+    if(saved && typeof saved==="object") state.qty = {...state.qty, ...saved};
+  }catch(e){}
+  render();
+})();
+
+// 인쇄 버튼
+document.getElementById('previewPrint').addEventListener('click', ()=> window.print());
+</script>
+
+<!-- 오른쪽 하단 플로팅 미리보기 버튼(캔버스 테스트용) -->
+<button class="fpv-btn" id="floatingPreviewBtn" type="button" title="선택 내역 미리보기">미리보기</button>
+
+<script>
+  // 플로팅 버튼도 같은 미리보기 모달 사용
+  document.getElementById('floatingPreviewBtn').addEventListener('click', openPreview);
+</script>
+</body>
+</html>
